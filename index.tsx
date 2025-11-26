@@ -181,6 +181,9 @@ const FolderIcon = ({ highlighted, onClick, label }: { highlighted: boolean; onC
   const labelBg = highlighted ? "#fef3c7" : "rgba(31, 41, 55, 0.5)";
   const labelBorder = highlighted ? "#fcd34d" : "transparent";
 
+  // 사용자 요청에 따라 이미지 URL을 변경하고, SVG 대신 <img> 태그를 사용합니다.
+  const newImageUrl = "https://i.imgur.com/cRn5KQK.png";
+
   return (
     <div
       onClick={onClick}
@@ -192,12 +195,19 @@ const FolderIcon = ({ highlighted, onClick, label }: { highlighted: boolean; onC
         height: '100px',
       }}
     >
-      {/* Provided SVG Folder Design */}
-      <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="overflow-visible">
-        <path d="M10 20C10 14.4772 14.4772 10 20 10H40L50 20H80C85.5228 20 90 24.4772 90 30V80C90 85.5228 85.5228 90 80 90H20C14.4772 90 10 85.5228 10 80V20Z" fill="#FCE883"/>
-        <circle cx="50" cy="55" r="15" fill="#FDD835"/>
-        <path d="M50 40C58.2843 40 65 46.7157 65 55C65 63.2843 58.2843 70 50 70C41.7157 70 35 63.2843 35 55" stroke="#FBC02D" strokeWidth="5" strokeLinecap="round"/>
-      </svg>
+      {/* 기존의 SVG 코드를 사용자님이 요청하신 새 이미지 URL을 사용하는 <img> 태그로 대체합니다. 
+        주의: Imgur URL은 'i.imgur.com/ID.png'와 같이 직접 이미지 파일로 연결되는 형식이어야 웹에서 안정적으로 사용 가능합니다.
+      */}
+      <img 
+        src={newImageUrl} 
+        alt="정책 폴더 아이콘"
+        className="w-full h-full object-contain drop-shadow-lg"
+        // 이미지 로딩 실패 시 대비
+        onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.src = "https://placehold.co/120x100/334155/E2E8F0?text=Image+Load+Fail"; // Placeholder for failure
+        }}
+      />
 
       <div 
         className={`absolute -bottom-8 text-[11px] font-bold py-1 px-3 rounded-full pointer-events-none transition-all duration-300 transform border
@@ -488,6 +498,9 @@ const App = () => {
       }
     });
     
+    // NOTE: For performance, this is a heavy operation running every frame.
+    // Ideally, the highlighting should use non-React animation techniques 
+    // or be throttled/debounced if using state updates.
     setHighlightedFiles(prev => {
         if (newHighlights.size > prev.size) playSoundEffect('scan');
         if (prev.size !== newHighlights.size) return newHighlights;
