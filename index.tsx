@@ -531,7 +531,7 @@ const App = () => {
         let nextVy = p.vy;
         let nextRot = p.rotation;
         
-        // Sequence: Fall (0-1s) -> Freeze (1-1.2s) -> Teleport/Tractor (>1.2s)
+        // Sequence: Fall (0-1s) -> Freeze (1-1.5s) -> Teleport/Tractor (>1.5s)
         if (p.isChosen && !p.isIncinerated) {
             if (age < 1000) {
                 // Normal fall physics
@@ -540,35 +540,33 @@ const App = () => {
                 nextY = p.y + p.vy;
                 nextRot = p.rotation + p.rotSpeed;
                 nextVx *= 0.98;
-            } else if (age < 1200) {
-                // Phase 1: Charge/Anticipation
-                // Float up slowly and spin intensely
-                nextVx = nextVx * 0.9;
-                nextVy = -1; // Float up slightly
-                nextX = p.x + nextVx;
-                nextY = p.y + nextVy;
-                nextRot = p.rotation + 25; // High speed spin
+            } else if (age < 1500) {
+                // Freeze phase with vibration
+                nextVx = 0;
+                nextVy = 0;
+                nextX = p.x + (Math.random() - 0.5) * 4; // Vibrate
+                nextY = p.y + (Math.random() - 0.5) * 4;
             } else {
-                // Phase 2: Teleport/Snap
+                // Tractor Beam Phase
                 const targetX = window.innerWidth / 2;
                 const targetY = window.innerHeight - 100;
                 
                 const dX = targetX - p.x;
                 const dY = targetY - p.y;
                 
-                // Fast Lerp/Snap
-                nextX = p.x + dX * 0.25;
-                nextY = p.y + dY * 0.25;
-                
-                // Orient towards zero
-                nextRot = p.rotation * 0.7; 
+                // Fast Lerp for snap feel
+                nextX = p.x + dX * 0.15;
+                nextY = p.y + dY * 0.15;
+                nextRot = p.rotation * 0.8; 
                 nextVx = 0;
                 nextVy = 0;
 
                 if (Math.abs(dX) < 10 && Math.abs(dY) < 10) {
                     // ARRIVED!
+                    // Mark for collection
                     currentTractorTarget = null;
                     newCollected.push(p);
+                    // Don't add to activeParticles, so it's removed from falling set
                     return; 
                 } else {
                     currentTractorTarget = { x: nextX, y: nextY };
@@ -584,15 +582,6 @@ const App = () => {
              
              // Slow down X velocity (air resistance)
              nextVx *= 0.98;
-
-             // CEILING COLLISION
-             // Prevent particles from going above the UFO (plus some padding)
-             const ceilingY = UFO_FIXED_Y + 50; 
-             if (nextY < ceilingY) {
-                nextY = ceilingY;
-                nextVy = Math.abs(nextVy) * 0.5; // Bounce down with damping
-                nextRot += (Math.random() - 0.5) * 10; // Add tumble on hit
-             }
         }
 
         activeParticles.push({
@@ -666,6 +655,7 @@ const App = () => {
     const centerY = rect.top + rect.height / 2;
     const label = files[index].label;
 
+    // Do NOT clear particles, allow them to stack/rain
     setSelectedPolicy(null);
 
     // Spawn new particles
@@ -679,11 +669,10 @@ const App = () => {
         return {
             id: Date.now() + i + Math.random(),
             spawnTime: Date.now(),
-            // Clamp start Y to avoid immediate clipping with UFO
             x: centerX + (Math.random() - 0.5) * 40,
-            y: Math.max(centerY - 20, UFO_FIXED_Y + 60), 
-            vx: (Math.random() - 0.5) * 35, // Wider spread (was 12)
-            vy: (Math.random() * -6 - 2), // Slightly less upward force (was -10 -2)
+            y: centerY - 20,
+            vx: (Math.random() - 0.5) * 12, 
+            vy: (Math.random() * -10 - 2), 
             rotation: Math.random() * 360,
             rotSpeed: (Math.random() - 0.5) * 15,
             color: DOC_COLORS[Math.floor(Math.random() * DOC_COLORS.length)],
@@ -814,4 +803,305 @@ const App = () => {
           {/* Core Wobble Filter */}
           <filter id="coreWobble">
             <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="2" result="noise" seed="0">
-                <animate attributeName="baseFrequency" values="0.02;0.0
+                <animate attributeName="baseFrequency" values="0.02;0.06;0.02" dur="0.1s" repeatCount="indefinite"/>
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="6" />
+            <feGaussianBlur stdDeviation="1" result="glow"/>
+            <feMerge>
+                <feMergeNode in="glow"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        
+        {/* Main Beam */}
+        <path
+          d={`
+            M ${ufoPos.x} ${ufoPos.y + 20} 
+            L ${ufoPos.x - BEAM_LENGTH * BEAM_SPREAD} ${ufoPos.y + BEAM_LENGTH} 
+            L ${ufoPos.x + BEAM_LENGTH * BEAM_SPREAD} ${ufoPos.y + BEAM_LENGTH} 
+            Z
+          `}
+          fill="url(#beamGradient)"
+          style={{ mixBlendMode: 'plus-lighter' }}
+          filter="url(#glow)"
+        />
+
+        {/* Tractor Beam Visuals */}
+        {tractorBeamTarget && (
+            <g filter="url(#tractorGlow)">
+                {/* Outer pulsing aura - Erratic */}
+                <line
+                    x1={ufoPos.x}
+                    y1={ufoPos.y + 20}
+                    x2={tractorBeamTarget.x}
+                    y2={tractorBeamTarget.y}
+                    stroke="cyan"
+                    strokeWidth="20"
+                    strokeOpacity="0.4"
+                    strokeLinecap="round"
+                >
+                    <animate attributeName="stroke-opacity" values="0.2;0.8;0.3;0.9;0.2;0.7" dur="0.08s" repeatCount="indefinite" />
+                    <animate attributeName="stroke-width" values="20;55;25;45;15;50" dur="0.09s" repeatCount="indefinite" />
+                    <animate attributeName="stroke" values="#00ffff;#0099ff;#00ffff;#80ffff" dur="0.1s" repeatCount="indefinite" />
+                </line>
+
+                {/* Moving energy dashes */}
+                <line
+                    x1={ufoPos.x}
+                    y1={ufoPos.y + 20}
+                    x2={tractorBeamTarget.x}
+                    y2={tractorBeamTarget.y}
+                    stroke="#e0f2fe"
+                    strokeWidth="8"
+                    strokeDasharray="10 30"
+                    strokeLinecap="round"
+                >
+                    <animate attributeName="stroke-dashoffset" from="40" to="0" dur="0.05s" repeatCount="indefinite" />
+                </line>
+
+                {/* Inner white core - Wobbly */}
+                <line
+                    x1={ufoPos.x}
+                    y1={ufoPos.y + 20}
+                    x2={tractorBeamTarget.x}
+                    y2={tractorBeamTarget.y}
+                    stroke="white"
+                    strokeWidth="6"
+                    strokeOpacity="1"
+                    filter="url(#coreWobble)"
+                >
+                     <animate attributeName="stroke-width" values="5;8;5" dur="0.08s" repeatCount="indefinite" />
+                </line>
+            </g>
+        )}
+      </svg>
+      
+      {/* Particles (Falling & Active) */}
+      {particles.map(p => {
+        const age = Date.now() - p.spawnTime;
+        const isBurning = p.isIncinerated && age > 1000;
+        
+        // Clamp burn progress for visual card fade out
+        const visualBurnProgress = Math.min(p.burnProgress, 1);
+        const burnScale = 1 - visualBurnProgress * 0.5;
+        const burnBrightness = 1 - visualBurnProgress * 0.8;
+        const burnHue = visualBurnProgress * 50; 
+        
+        // Visual state for chosen one (freeze/presenting)
+        const isTractorPhase = p.isChosen && age > 1500;
+        const isFreezePhase = p.isChosen && age > 1000 && age <= 1500;
+
+        return (
+            <div
+            key={p.id}
+            className={`absolute transition-transform duration-75
+                ${p.isIncinerated ? 'pointer-events-none' : 'pointer-events-none'}
+                ${isTractorPhase || isFreezePhase ? 'z-[60]' : 'z-30'}
+            `}
+            style={{
+                left: p.x,
+                top: p.y,
+                transform: `translate(-50%, -50%) rotate(${p.rotation}deg) scale(${isTractorPhase ? 1.2 : burnScale})`,
+                width: `${p.width}px`,
+                height: `${p.height}px`,
+            }}
+            >
+                {/* Visual Card Container - Fades out independently when burning */}
+                <div 
+                    className={`absolute inset-0 shadow-md flex flex-col items-center justify-center
+                        ${isTractorPhase || isFreezePhase ? 'shadow-[0_0_30px_rgba(0,255,255,0.6)]' : ''}
+                    `}
+                    style={{
+                        borderRadius: '4px',
+                        backgroundColor: isBurning ? '#333' : '#FFF',
+                        border: isBurning ? 'none' : ((isTractorPhase || isFreezePhase) ? '2px solid cyan' : '1px solid #E5E7EB'),
+                        filter: isBurning 
+                            ? `brightness(${burnBrightness}) sepia(1) hue-rotate(-${burnHue}deg) url(#heatDistortion)` 
+                            : 'none',
+                        opacity: 1 - visualBurnProgress,
+                        boxShadow: isBurning ? '0 0 20px 10px rgba(255, 69, 0, 0.4)' : 'none'
+                    }}
+                >
+                    {/* Top color bar */}
+                    <div className="w-full h-2 absolute top-0 left-0" style={{ backgroundColor: p.color }}></div>
+                    
+                    {/* Special Icon for Survivors */}
+                    {!p.isIncinerated && (
+                        <div className="absolute -top-3 -left-3 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white shadow-sm z-10">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                    )}
+
+                    {/* Content lines */}
+                    <div className="flex flex-col gap-1 w-full px-1 mt-1">
+                        <div className="w-2/3 h-1 bg-gray-200 rounded-sm"></div>
+                        <div className="w-full h-1 bg-gray-100 rounded-sm"></div>
+                        <div className="w-full h-1 bg-gray-100 rounded-sm"></div>
+                    </div>
+
+                    {/* Fire effect overlay if burning */}
+                    {isBurning && (
+                        <div className="absolute inset-0 bg-orange-500 mix-blend-overlay opacity-50 rounded-sm"></div>
+                    )}
+                </div>
+                
+                {/* Smoke and Embers - Visible even as card fades */}
+                {isBurning && (
+                    <>
+                        {/* Generate Deterministic Smoke Particles */}
+                        {Array.from({length: 5}).map((_, i) => {
+                            const r1 = pseudoRandom(p.id + i * 11);
+                            const r2 = pseudoRandom(p.id + i * 22);
+                            const type = r2 > 0.6 ? 'smoke-particle-right' : (r2 > 0.3 ? 'smoke-particle-left' : 'smoke-particle');
+                            return (
+                                <div 
+                                    key={`smoke-${i}`}
+                                    className={`${type}`}
+                                    style={{ 
+                                        width: `${1.5 + r1 * 1.5}rem`,
+                                        height: `${1.5 + r1 * 1.5}rem`,
+                                        top: `${(r2 * 20) - 20}%`,
+                                        left: `${(r1 * 120) - 10}%`,
+                                        animationDelay: `${i * 0.15}s`
+                                    }} 
+                                />
+                            );
+                        })}
+                        
+                        {/* Generate Deterministic Ember Particles */}
+                        {Array.from({length: 7}).map((_, i) => {
+                            const r1 = pseudoRandom(p.id + i * 33);
+                            const r2 = pseudoRandom(p.id + i * 44);
+                            const wobble = r2 > 0.5;
+                            return (
+                                <div 
+                                    key={`ember-${i}`}
+                                    className={wobble ? "ember-particle-wobble" : "ember-particle"}
+                                    style={{ 
+                                        bottom: `${(r1 * 50)}%`,
+                                        left: `${(r2 * 100)}%`,
+                                        animationDelay: `${i * 0.1}s`,
+                                        animationDuration: `${0.8 + r1 * 0.5}s`
+                                    }} 
+                                />
+                            );
+                        })}
+                    </>
+                )}
+            </div>
+        );
+      })}
+
+      {/* Collected Cards Display (Bottom Center) */}
+      <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 flex items-end justify-center z-40 h-32 w-full pointer-events-none">
+          {collectedCards.map((card, index) => {
+              const total = collectedCards.length;
+              // Fan out calculation
+              const rotation = (index - (total - 1) / 2) * 5;
+              const yOffset = Math.abs(index - (total - 1) / 2) * 8; // Increased arc slightly
+              const xOffset = (index - (total - 1) / 2) * 35; // Increased spacing slightly
+              
+              const isRead = !!card.read;
+
+              return (
+                <div
+                    key={card.id}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleCardClick(card.id, card.data);
+                    }}
+                    className={`absolute bottom-0 cursor-pointer pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-110 hover:z-50 hover:-translate-y-4
+                        bg-white rounded-lg shadow-xl overflow-hidden`}
+                    style={{
+                        width: '130px',
+                        height: '170px',
+                        transform: `translateX(${xOffset}px) rotate(${rotation}deg) translateY(${yOffset}px)`,
+                        zIndex: index
+                    }}
+                >
+                    {/* Inner Wrapper for Entry Animation */}
+                    <div 
+                        className="w-full h-full animate-card-spring relative flex flex-col"
+                        // No delay on sequential adds usually, but helps if batch
+                        style={{ animationDelay: `${index * 0.05}s` }} 
+                    >
+                        {/* Header Color - Removed bottom gradient line */}
+                        <div className="h-6 w-full shrink-0 relative" style={{ backgroundColor: card.color }}></div>
+
+                        {/* Body */}
+                        <div className="p-3 flex-1 flex flex-col bg-gradient-to-b from-white to-gray-50">
+                             {/* Mini Skeleton UI */}
+                             <div className="flex gap-2 mb-2">
+                                <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center shrink-0">
+                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={card.color} strokeWidth="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                     </svg>
+                                </div>
+                                <div className="flex flex-col gap-1 w-full pt-1">
+                                    <div className="w-full h-1.5 bg-gray-200 rounded-full"></div>
+                                    <div className="w-2/3 h-1.5 bg-gray-200 rounded-full"></div>
+                                </div>
+                             </div>
+                             
+                             <div className="mt-auto">
+                                <div className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2">
+                                    {card.data?.name}
+                                </div>
+                                <div className="text-[9px] text-gray-500 mt-1">
+                                    {card.data?.amount}
+                                </div>
+                             </div>
+                        </div>
+
+                        {/* Badge */}
+                        {!isRead && (
+                             <div className="absolute top-2 right-2 translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-lg animate-bounce z-20 border-2 border-white">
+                                !
+                             </div>
+                        )}
+                    </div>
+                </div>
+              )
+          })}
+      </div>
+
+      {/* Reset Button */}
+      {collectedCards.length > 0 && (
+        <button
+            onClick={handleReset}
+            className="absolute bottom-8 right-8 z-[100] px-6 py-2 bg-red-500/80 hover:bg-red-600 text-white font-bold rounded-full backdrop-blur-sm shadow-[0_0_15px_rgba(239,68,68,0.5)] transition-all animate-in fade-in cursor-pointer pointer-events-auto"
+        >
+            Reset
+        </button>
+      )}
+
+      {/* UFO */}
+      <div 
+        className="absolute top-0 left-0 z-50 pointer-events-none"
+        style={{
+          transform: `translate(${ufoPos.x}px, ${ufoPos.y}px)`
+        }}
+      >
+        <UFO tilt={tilt} />
+      </div>
+      
+      {/* Modal Overlay */}
+      {selectedPolicy && (
+          <PolicyModal data={selectedPolicy} onClose={() => setSelectedPolicy(null)} />
+      )}
+
+      {/* Hints */}
+      <div className="absolute bottom-5 right-5 text-gray-500 text-xs opacity-50 pointer-events-none">
+        Click folders to find policies • Unsuitable policies are incinerated
+      </div>
+
+    </div>
+  );
+};
+
+const root = createRoot(document.getElementById('root')!);
+root.render(<App />);
