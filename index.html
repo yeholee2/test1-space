@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Youth Policy UFO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #0B0C15;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        cursor: none; /* Hide default cursor since UFO follows it */
+      }
+      * {
+        box-sizing: border-box;
+      }
+      .no-select {
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      /* Modal Animations */
+      @keyframes overlayFadeIn {
+        from { background-color: rgba(0, 0, 0, 0); backdrop-filter: blur(0); }
+        to { background-color: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); }
+      }
+      
+      @keyframes modalPopIn {
+        0% { opacity: 0; transform: scale(0.9) translateY(20px); }
+        50% { opacity: 1; }
+        100% { opacity: 1; transform: scale(1) translateY(0); }
+      }
+
+      @keyframes contentSlideUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* Refined Card Landing Animation */
+      @keyframes cardSpring {
+        0% { 
+          opacity: 0; 
+          transform: translateY(-80px) scale(1.2); 
+        }
+        20% {
+          opacity: 1;
+        }
+        60% { 
+          transform: translateY(10px) scale(0.95); 
+        }
+        80% { 
+          transform: translateY(-5px) scale(1.02); 
+        }
+        100% { 
+          transform: translateY(0) scale(1); 
+        }
+      }
+      
+      /* Incineration Effects */
+      @keyframes smokePuff {
+        0% { transform: translateY(0) scale(0.5); opacity: 0; }
+        20% { opacity: 0.8; }
+        100% { transform: translateY(-50px) scale(2.5); opacity: 0; }
+      }
+      
+      @keyframes smokePuffLeft {
+        0% { transform: translateY(0) translateX(0) scale(0.5); opacity: 0; }
+        20% { opacity: 0.6; }
+        100% { transform: translateY(-70px) translateX(-30px) scale(3); opacity: 0; }
+      }
+
+      @keyframes smokePuffRight {
+        0% { transform: translateY(0) translateX(0) scale(0.5); opacity: 0; }
+        20% { opacity: 0.6; }
+        100% { transform: translateY(-70px) translateX(30px) scale(3); opacity: 0; }
+      }
+      
+      @keyframes emberRise {
+        0% { transform: translateY(0) scale(1); opacity: 1; }
+        100% { transform: translateY(-40px) scale(0); opacity: 0; }
+      }
+
+      @keyframes emberWobble {
+        0% { transform: translateY(0) translateX(0) scale(1); opacity: 1; }
+        25% { transform: translateY(-15px) translateX(5px) scale(0.9); }
+        50% { transform: translateY(-30px) translateX(-5px) scale(0.7); }
+        75% { transform: translateY(-45px) translateX(5px) scale(0.5); }
+        100% { transform: translateY(-60px) translateX(0) scale(0); opacity: 0; }
+      }
+
+      .animate-overlay {
+        animation: overlayFadeIn 0.3s ease-out forwards;
+      }
+
+      .animate-modal {
+        animation: modalPopIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      
+      .animate-content-1 { animation: contentSlideUp 0.4s ease-out 0.1s forwards; opacity: 0; }
+      .animate-content-2 { animation: contentSlideUp 0.4s ease-out 0.2s forwards; opacity: 0; }
+      .animate-content-3 { animation: contentSlideUp 0.4s ease-out 0.3s forwards; opacity: 0; }
+      
+      .animate-card-spring {
+        animation: cardSpring 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+      }
+
+      .smoke-particle {
+        position: absolute;
+        background: radial-gradient(circle, rgba(120,120,120,0.9) 0%, rgba(60,60,60,0) 70%);
+        pointer-events: none;
+        border-radius: 50%;
+        animation: smokePuff 1.2s ease-out forwards;
+      }
+      
+      .smoke-particle-left {
+        position: absolute;
+        background: radial-gradient(circle, rgba(100,100,100,0.8) 0%, rgba(50,50,50,0) 70%);
+        pointer-events: none;
+        border-radius: 50%;
+        animation: smokePuffLeft 1.5s ease-out forwards;
+      }
+
+      .smoke-particle-right {
+        position: absolute;
+        background: radial-gradient(circle, rgba(140,140,140,0.8) 0%, rgba(70,70,70,0) 70%);
+        pointer-events: none;
+        border-radius: 50%;
+        animation: smokePuffRight 1.5s ease-out forwards;
+      }
+      
+      .ember-particle {
+        position: absolute;
+        width: 3px;
+        height: 3px;
+        background-color: #ff5500;
+        border-radius: 50%;
+        box-shadow: 0 0 6px #ff7700;
+        pointer-events: none;
+        animation: emberRise 1s linear forwards;
+      }
+
+      .ember-particle-wobble {
+        position: absolute;
+        width: 2px;
+        height: 2px;
+        background-color: #ff9900;
+        border-radius: 50%;
+        box-shadow: 0 0 8px #ffaa00;
+        pointer-events: none;
+        animation: emberWobble 1.2s linear forwards;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
