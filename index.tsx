@@ -45,6 +45,26 @@ interface Particle {
   read?: boolean;
 }
 
+interface Laser {
+  id: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+interface Spark {
+  id: number;
+  x: number;
+  y: number;
+}
+
+interface HitEffect {
+  id: number;
+  x: number;
+  y: number;
+}
+
 const POLICY_LABELS = [
   "청년 주거", "취업 지원", "창업 자금", "교육비", 
   "심리 상담", "월세 지원", "교통비", "문화 예술", 
@@ -143,6 +163,25 @@ const pseudoRandom = (seed: number) => {
 
 // --- Sub-components ---
 
+const Crosshair = ({ x, y, active }: { x: number, y: number, active: boolean }) => (
+  <div 
+    className="pointer-events-none fixed z-[100] mix-blend-difference"
+    style={{ 
+      left: x, 
+      top: y, 
+      transform: 'translate(-50%, -50%)' 
+    }}
+  >
+    {/* Outer Ring */}
+    <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full border transition-all duration-150 ${active ? 'border-red-500 scale-125' : 'border-cyan-400 scale-100 opacity-60'}`}></div>
+    {/* Cross */}
+    <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-0.5 transition-colors ${active ? 'bg-red-500' : 'bg-cyan-400'}`}></div>
+    <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-4 transition-colors ${active ? 'bg-red-500' : 'bg-cyan-400'}`}></div>
+    {/* Center Dot */}
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-1 bg-red-500 rounded-full shadow-[0_0_5px_red]"></div>
+  </div>
+);
+
 const Stars = () => {
   const stars = useMemo(() => {
     return Array.from({ length: 80 }).map((_, i) => ({
@@ -181,8 +220,8 @@ const FolderIcon = ({ highlighted, onClick, label }: { highlighted: boolean; onC
   const labelBg = highlighted ? "#fef3c7" : "rgba(31, 41, 55, 0.5)";
   const labelBorder = highlighted ? "#fcd34d" : "transparent";
 
-  // 사용자 요청에 따라 이미지 URL을 변경하고, SVG 대신 <img> 태그를 사용합니다.
   const newImageUrl = "https://i.imgur.com/cRn5KQK.png";
+  const [isLoaded, setIsLoaded] = useState(false);
 
   return (
     <div
@@ -195,17 +234,15 @@ const FolderIcon = ({ highlighted, onClick, label }: { highlighted: boolean; onC
         height: '100px',
       }}
     >
-      {/* 기존의 SVG 코드를 사용자님이 요청하신 새 이미지 URL을 사용하는 <img> 태그로 대체합니다. 
-        주의: Imgur URL은 'i.imgur.com/ID.png'와 같이 직접 이미지 파일로 연결되는 형식이어야 웹에서 안정적으로 사용 가능합니다.
-      */}
       <img 
         src={newImageUrl} 
         alt="정책 폴더 아이콘"
-        className="w-full h-full object-contain drop-shadow-lg"
-        // 이미지 로딩 실패 시 대비
+        className={`w-full h-full object-contain drop-shadow-lg transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+        onLoad={() => setIsLoaded(true)}
         onError={(e) => {
             const target = e.target as HTMLImageElement;
-            target.src = "https://placehold.co/120x100/334155/E2E8F0?text=Image+Load+Fail"; // Placeholder for failure
+            target.src = "https://placehold.co/120x100/334155/E2E8F0?text=Image+Load+Fail"; 
+            setIsLoaded(true);
         }}
       />
 
@@ -248,7 +285,6 @@ const UFO = ({ tilt }: { tilt: number }) => (
 const PolicyModal = ({ data, onClose }: { data: PolicyData, onClose: () => void }) => {
   const [showMore, setShowMore] = useState(false);
 
-  // Stop propagation to prevent clicks from closing audio or spawning things
   const handleContentClick = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
@@ -260,7 +296,7 @@ const PolicyModal = ({ data, onClose }: { data: PolicyData, onClose: () => void 
     >
       <div 
         onClick={handleContentClick}
-        className="bg-white rounded-2xl p-6 w-[90%] max-w-md shadow-[0_0_40px_rgba(253,224,71,0.2)] border border-yellow-100 relative animate-modal"
+        className="bg-white rounded-2xl p-6 w-[90%] max-w-md shadow-[0_0_40px_rgba(253,224,71,0.2)] border border-yellow-100 relative animate-modal opacity-0"
       >
         <button 
           onClick={onClose}
@@ -351,6 +387,9 @@ const App = () => {
   const [collectedCards, setCollectedCards] = useState<Particle[]>([]);
   const [selectedPolicy, setSelectedPolicy] = useState<PolicyData | null>(null);
   const [tractorBeamTarget, setTractorBeamTarget] = useState<{x: number, y: number} | null>(null);
+  const [lasers, setLasers] = useState<Laser[]>([]);
+  const [sparks, setSparks] = useState<Spark[]>([]);
+  const [hits, setHits] = useState<HitEffect[]>([]);
   
   // Game Stats
   const [stats, setStats] = useState({ explored: 0, filtered: 0 });
@@ -397,7 +436,7 @@ const App = () => {
     }
   };
 
-  const playSoundEffect = (type: 'pop' | 'scan' | 'burn' | 'tractor') => {
+  const playSoundEffect = (type: 'pop' | 'scan' | 'burn' | 'tractor' | 'laser' | 'hit') => {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume();
@@ -417,6 +456,32 @@ const App = () => {
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
       osc.start(now);
       osc.stop(now + 0.2);
+    } else if (type === 'hit') {
+      // Heavier impact sound
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(200, now);
+      osc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+      osc.start(now);
+      osc.stop(now + 0.3);
+      
+      // Secondary noise for explosion
+      const noiseNode = ctx.createBufferSource();
+      const bufferSize = ctx.sampleRate * 0.5;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      noiseNode.buffer = buffer;
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.2, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+      noiseNode.connect(noiseGain);
+      noiseGain.connect(ctx.destination);
+      noiseNode.start(now);
+
     } else if (type === 'scan') {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(800, now);
@@ -447,6 +512,14 @@ const App = () => {
       
       osc.start(now);
       osc.stop(now + 0.4);
+    } else if (type === 'laser') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(800, now);
+      osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc.start(now);
+      osc.stop(now + 0.15);
     }
   };
 
@@ -498,9 +571,6 @@ const App = () => {
       }
     });
     
-    // NOTE: For performance, this is a heavy operation running every frame.
-    // Ideally, the highlighting should use non-React animation techniques 
-    // or be throttled/debounced if using state updates.
     setHighlightedFiles(prev => {
         if (newHighlights.size > prev.size) playSoundEffect('scan');
         if (prev.size !== newHighlights.size) return newHighlights;
@@ -521,16 +591,13 @@ const App = () => {
         const age = now - p.spawnTime;
 
         // --- Incineration Logic ---
-        // Incineration happens after 1000ms delay
         let nextLife = p.life;
         let nextBurnProgress = p.burnProgress;
         
         if (p.isIncinerated) {
           if (age > 1000) {
-            // Start burning
             nextBurnProgress = p.burnProgress + 0.04; // Burn speed
             if (nextBurnProgress < 0.1 && p.burnProgress === 0) playSoundEffect('burn');
-            // Allow progress to go beyond 1 to let smoke animation finish while card is invisible
             if (nextBurnProgress >= 1.4) nextLife = 0; 
           }
         } else {
@@ -560,26 +627,24 @@ const App = () => {
                 nextX = p.x + (Math.random() - 0.5) * 4; // Vibrate
                 nextY = p.y + (Math.random() - 0.5) * 4;
             } else {
-                // Tractor Beam Phase
+                // Tractor Beam Phase - Moves to Bottom Center (Deck)
                 const targetX = window.innerWidth / 2;
-                const targetY = window.innerHeight - 100;
+                const targetY = window.innerHeight - 100; // Destination: Bottom Center
                 
                 const dX = targetX - p.x;
                 const dY = targetY - p.y;
                 
                 // Fast Lerp for snap feel
-                nextX = p.x + dX * 0.15;
-                nextY = p.y + dY * 0.15;
+                nextX = p.x + dX * 0.2; // Speed up slightly
+                nextY = p.y + dY * 0.2;
                 nextRot = p.rotation * 0.8; 
                 nextVx = 0;
                 nextVy = 0;
 
-                if (Math.abs(dX) < 10 && Math.abs(dY) < 10) {
+                if (Math.abs(dX) < 20 && Math.abs(dY) < 20) {
                     // ARRIVED!
-                    // Mark for collection
                     currentTractorTarget = null;
                     newCollected.push(p);
-                    // Don't add to activeParticles, so it's removed from falling set
                     return; 
                 } else {
                     currentTractorTarget = { x: nextX, y: nextY };
@@ -593,7 +658,6 @@ const App = () => {
              nextY = p.y + p.vy;
              nextRot = p.rotation + p.rotSpeed;
              
-             // Slow down X velocity (air resistance)
              nextVx *= 0.98;
         }
 
@@ -609,11 +673,9 @@ const App = () => {
         });
       });
 
-      // Transfer to collected state if any arrived
       if (newCollected.length > 0) {
         setTimeout(() => {
             setCollectedCards(prev => {
-                // Avoid duplicates just in case
                 const ids = new Set(prev.map(c => c.id));
                 const uniqueNew = newCollected.filter(c => !ids.has(c.id));
                 return [...prev, ...uniqueNew];
@@ -639,11 +701,40 @@ const App = () => {
     setMousePos({ x: e.clientX, y: e.clientY });
   };
 
-  const handleInteractionStart = () => {
+  const handleGlobalMouseDown = (e: React.MouseEvent) => {
     initAudio();
     if (audioCtxRef.current?.state === 'suspended') {
         audioCtxRef.current.resume();
     }
+    
+    // Fire laser from UFO current visual position
+    playSoundEffect('laser');
+    
+    const newLaser = {
+        id: Date.now(),
+        x1: ufoPosRef.current.x,
+        y1: ufoPosRef.current.y + 20, 
+        x2: e.clientX,
+        y2: e.clientY
+    };
+    
+    setLasers(prev => [...prev, newLaser]);
+
+    // Create Spark (Standard laser hit anywhere)
+    const newSpark = {
+        id: Date.now(),
+        x: e.clientX,
+        y: e.clientY
+    };
+    setSparks(prev => [...prev, newSpark]);
+    
+    // Auto-remove laser and spark
+    setTimeout(() => {
+        setLasers(prev => prev.filter(l => l.id !== newLaser.id));
+    }, 150);
+    setTimeout(() => {
+        setSparks(prev => prev.filter(s => s.id !== newSpark.id));
+    }, 300);
   };
 
   const handleReset = (e: React.MouseEvent) => {
@@ -655,11 +746,12 @@ const App = () => {
   };
 
   const handleFileClick = (index: number) => {
-    handleInteractionStart();
+    // Note: handleGlobalMouseDown fires first on mouse down, this fires on click (up)
+    // We let the laser fire on mouse down, and the explosion happen on click
     
     if (!highlightedFiles.has(index)) return;
 
-    playSoundEffect('pop');
+    playSoundEffect('hit'); // New hit sound
 
     const el = fileRefs.current[index];
     if (!el) return;
@@ -668,16 +760,22 @@ const App = () => {
     const centerY = rect.top + rect.height / 2;
     const label = files[index].label;
 
-    // Do NOT clear particles, allow them to stack/rain
     setSelectedPolicy(null);
 
-    // Spawn new particles
-    const newParticles: Particle[] = Array.from({ length: 12 }).map((_, i) => {
-        // ~66% Incineration rate
-        let isIncinerated = Math.random() < 0.66;
-        const isChosen = i === 0; // The first one generated will be the chosen one
+    // Create Hit Effect
+    const newHit = {
+      id: Date.now(),
+      x: centerX,
+      y: centerY
+    };
+    setHits(prev => [...prev, newHit]);
+    setTimeout(() => setHits(prev => prev.filter(h => h.id !== newHit.id)), 300);
 
-        if (isChosen) isIncinerated = false; // Chosen one cannot be burned
+    const newParticles: Particle[] = Array.from({ length: 12 }).map((_, i) => {
+        let isIncinerated = Math.random() < 0.66;
+        const isChosen = i === 0;
+
+        if (isChosen) isIncinerated = false;
 
         return {
             id: Date.now() + i + Math.random(),
@@ -702,35 +800,31 @@ const App = () => {
 
     setParticles(prev => [...prev, ...newParticles]);
     
-    // Update Stats
-    const newExplored = newParticles.length;
-    const newFiltered = newParticles.filter(p => !p.isIncinerated).length;
     setStats(prev => ({
-        explored: prev.explored + newExplored,
-        filtered: prev.filtered + newFiltered
+        explored: prev.explored + newParticles.length,
+        filtered: prev.filtered + newParticles.filter(p => !p.isIncinerated).length
     }));
 
-    // Trigger tractor sound with delay: Fall(1s) + Freeze(0s) start -> Sound starts at freeze
     setTimeout(() => playSoundEffect('tractor'), 1000);
   };
 
   const handleCardClick = (id: number, data?: PolicyData) => {
-    // Mark the card as read
     setCollectedCards(prev => prev.map(c => 
       c.id === id ? { ...c, read: true } : c
     ));
 
-    // Open the modal
     if (data) setSelectedPolicy(data);
   };
+
+  const isHoveringTarget = highlightedFiles.size > 0;
 
   return (
     <div 
       className="relative w-screen h-screen overflow-hidden bg-[#0B0C15] select-none cursor-none"
       onMouseMove={handleMouseMove}
-      onMouseDown={handleInteractionStart}
-      onClick={handleInteractionStart}
+      onMouseDown={handleGlobalMouseDown}
     >
+      <Crosshair x={mousePos.x} y={mousePos.y} active={isHoveringTarget} />
       <Stars />
 
       {/* Stats HUD */}
@@ -806,14 +900,12 @@ const App = () => {
               <feMergeNode in="SourceGraphic"/>
             </feMerge>
           </filter>
-          {/* Heat Distortion Filter */}
           <filter id="heatDistortion">
             <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="2" result="turbulence">
                 <animate attributeName="baseFrequency" values="0.05;0.08;0.05" dur="0.2s" repeatCount="indefinite" />
             </feTurbulence>
             <feDisplacementMap in2="turbulence" in="SourceGraphic" scale="10" xChannelSelector="R" yChannelSelector="G" />
           </filter>
-          {/* Core Wobble Filter */}
           <filter id="coreWobble">
             <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="2" result="noise" seed="0">
                 <animate attributeName="baseFrequency" values="0.02;0.06;0.02" dur="0.1s" repeatCount="indefinite"/>
@@ -839,6 +931,22 @@ const App = () => {
           style={{ mixBlendMode: 'plus-lighter' }}
           filter="url(#glow)"
         />
+        
+        {/* Lasers */}
+        {lasers.map(laser => (
+            <line
+                key={laser.id}
+                x1={laser.x1}
+                y1={laser.y1}
+                x2={laser.x2}
+                y2={laser.y2}
+                stroke="cyan"
+                strokeWidth="4"
+                strokeLinecap="round"
+                className="opacity-80"
+                filter="url(#glow)"
+            />
+        ))}
 
         {/* Tractor Beam Visuals */}
         {tractorBeamTarget && (
@@ -890,20 +998,41 @@ const App = () => {
         )}
       </svg>
       
+      {/* Laser Sparks (Small Hit) */}
+      {sparks.map(s => (
+        <div 
+            key={s.id} 
+            className="laser-spark"
+            style={{ left: s.x, top: s.y }}
+        />
+      ))}
+
+      {/* Explosion Blasts (Target Hit) */}
+      {hits.map(h => (
+          <div key={h.id} className="hit-blast" style={{ left: h.x, top: h.y }}>
+             <div className="hit-ring"></div>
+          </div>
+      ))}
+      
       {/* Particles (Falling & Active) */}
       {particles.map(p => {
         const age = Date.now() - p.spawnTime;
         const isBurning = p.isIncinerated && age > 1000;
         
-        // Clamp burn progress for visual card fade out
         const visualBurnProgress = Math.min(p.burnProgress, 1);
         const burnScale = 1 - visualBurnProgress * 0.5;
         const burnBrightness = 1 - visualBurnProgress * 0.8;
         const burnHue = visualBurnProgress * 50; 
         
-        // Visual state for chosen one (freeze/presenting)
         const isTractorPhase = p.isChosen && age > 1500;
         const isFreezePhase = p.isChosen && age > 1000 && age <= 1500;
+
+        let dynamicOpacity = 1 - visualBurnProgress;
+        if (isTractorPhase) {
+            // Fade out as it moves to center (approx 350ms duration)
+            const fadeProgress = (age - 1500) / 350;
+            dynamicOpacity = Math.max(0, 1 - fadeProgress);
+        }
 
         return (
             <div
@@ -932,14 +1061,12 @@ const App = () => {
                         filter: isBurning 
                             ? `brightness(${burnBrightness}) sepia(1) hue-rotate(-${burnHue}deg) url(#heatDistortion)` 
                             : 'none',
-                        opacity: 1 - visualBurnProgress,
+                        opacity: dynamicOpacity,
                         boxShadow: isBurning ? '0 0 20px 10px rgba(255, 69, 0, 0.4)' : 'none'
                     }}
                 >
-                    {/* Top color bar */}
                     <div className="w-full h-2 absolute top-0 left-0" style={{ backgroundColor: p.color }}></div>
                     
-                    {/* Special Icon for Survivors */}
                     {!p.isIncinerated && (
                         <div className="absolute -top-3 -left-3 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white shadow-sm z-10">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
@@ -948,23 +1075,19 @@ const App = () => {
                         </div>
                     )}
 
-                    {/* Content lines */}
                     <div className="flex flex-col gap-1 w-full px-1 mt-1">
                         <div className="w-2/3 h-1 bg-gray-200 rounded-sm"></div>
                         <div className="w-full h-1 bg-gray-100 rounded-sm"></div>
                         <div className="w-full h-1 bg-gray-100 rounded-sm"></div>
                     </div>
 
-                    {/* Fire effect overlay if burning */}
                     {isBurning && (
                         <div className="absolute inset-0 bg-orange-500 mix-blend-overlay opacity-50 rounded-sm"></div>
                     )}
                 </div>
                 
-                {/* Smoke and Embers - Visible even as card fades */}
                 {isBurning && (
                     <>
-                        {/* Generate Deterministic Smoke Particles */}
                         {Array.from({length: 5}).map((_, i) => {
                             const r1 = pseudoRandom(p.id + i * 11);
                             const r2 = pseudoRandom(p.id + i * 22);
@@ -984,7 +1107,6 @@ const App = () => {
                             );
                         })}
                         
-                        {/* Generate Deterministic Ember Particles */}
                         {Array.from({length: 7}).map((_, i) => {
                             const r1 = pseudoRandom(p.id + i * 33);
                             const r2 = pseudoRandom(p.id + i * 44);
@@ -1026,8 +1148,7 @@ const App = () => {
                         e.stopPropagation();
                         handleCardClick(card.id, card.data);
                     }}
-                    className={`absolute bottom-0 cursor-pointer pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-110 hover:z-50 hover:-translate-y-4
-                        bg-white rounded-lg shadow-xl overflow-hidden`}
+                    className={`absolute bottom-0 cursor-pointer pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-110 hover:z-50 hover:-translate-y-4`}
                     style={{
                         width: '130px',
                         height: '170px',
@@ -1037,7 +1158,7 @@ const App = () => {
                 >
                     {/* Inner Wrapper for Entry Animation */}
                     <div 
-                        className="w-full h-full animate-card-spring relative flex flex-col"
+                        className="w-full h-full animate-card-spring relative flex flex-col bg-white rounded-lg shadow-xl overflow-hidden"
                         // No delay on sequential adds usually, but helps if batch
                         style={{ animationDelay: `${index * 0.05}s` }} 
                     >
